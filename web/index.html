@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>教务系统 · 学业完成查询 & GPA</title>
+  <link rel="stylesheet" href="/assets/app.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23818cf8'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>JW</text></svg>" />
+</head>
+<body>
+  <!-- ================= 登录层 ================= -->
+  <div class="login-layer" id="login-layer" hidden>
+    <div class="login-box">
+      <h1>🎓 教务系统</h1>
+      <p class="sub">学业完成查询 · GPA 绩点计算</p>
+      <div class="login-tabs" id="login-tabs">
+        <button class="on" data-tab="pwd">学号密码</button>
+        <button data-tab="chrome">Chrome 导入</button>
+        <button data-tab="cookie">Cookie</button>
+      </div>
+
+      <div id="tab-pwd">
+        <div class="field">
+          <label>学号</label>
+          <input class="input" id="login-xh" placeholder="请输入学号" autocomplete="username" />
+        </div>
+        <div class="field">
+          <label>密码</label>
+          <input class="input" id="login-pwd" type="password" placeholder="统一身份认证密码" autocomplete="current-password" />
+          <div class="hint">密码仅在本机内存中使用, 直接提交至学校统一身份认证 (ids.xmu.edu.cn), 不会发送到任何第三方。</div>
+        </div>
+        <div class="field" id="captcha-field" hidden>
+          <label>验证码</label>
+          <div class="captcha-row">
+            <input class="input" id="login-captcha" placeholder="请输入验证码" />
+            <img class="captcha-img" id="captcha-img" title="点击刷新" alt="验证码" />
+          </div>
+        </div>
+        <div class="login-msg" id="login-msg"></div>
+        <button class="btn primary login-btn" id="login-btn">登 录</button>
+      </div>
+
+      <div id="tab-chrome" hidden>
+        <div class="notice" style="margin-bottom:16px">
+          <span class="icon">⚠️</span>
+          <span>需要先<b>完全关闭 Chrome</b>(所有窗口) 后点击导入。Chrome 运行时 cookie 数据库被独占锁定, 无法读取。</span>
+        </div>
+        <button class="btn primary login-btn" id="chrome-login-btn">从 Chrome 导入登录态</button>
+        <div class="login-msg" id="chrome-msg"></div>
+      </div>
+
+      <div id="tab-cookie" hidden>
+        <div class="field">
+          <label>Cookie 字符串</label>
+          <textarea class="input" id="cookie-input" rows="5" placeholder="name1=value1; name2=value2; ..." style="resize:vertical;font-family:var(--mono);font-size:12px"></textarea>
+          <div class="hint">在浏览器登录教务系统后, F12 → 应用/Application → Cookies → jw.xmu.edu.cn, 全选复制粘贴到此处。</div>
+        </div>
+        <div class="login-msg" id="cookie-msg"></div>
+        <button class="btn primary login-btn" id="cookie-login-btn">导入 Cookie 登录</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 主应用 ================= -->
+  <div class="app" id="app" hidden>
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo">JW</div>
+        <div class="brand-text">
+          <div class="brand-title">教务系统</div>
+          <div class="brand-sub">厦门大学 · 本地版</div>
+        </div>
+      </div>
+      <div class="nav-label">学业</div>
+      <a class="nav-item active" data-route="xywccx" href="#/xywccx">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        学业完成查询
+      </a>
+      <a class="nav-item" data-route="jdfpm" href="#/jdfpm">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        GPA 排名
+      </a>
+      <a class="nav-item" data-route="zmsq" href="#/zmsq">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        证明文件申请
+      </a>
+      <div class="sidebar-foot">
+        <div class="user-chip" id="user-chip"></div>
+        <button class="btn ghost small" id="theme-btn" title="切换主题">🌙 深色</button>
+        <button class="btn ghost small" id="logout-btn">退出登录</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div id="page-xywccx" class="page"></div>
+      <div id="page-jdfpm" class="page" hidden></div>
+      <div id="page-zmsq" class="page" hidden></div>
+    </main>
+  </div>
+
+  <div id="toast-wrap"></div>
+  <div id="modal-root"></div>
+
+  <script type="module" src="/assets/main.js"></script>
+</body>
+</html>

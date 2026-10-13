@@ -1,0 +1,10 @@
+{
+  "name": "xmu-jw-fe-rebuild-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "厦门大学教务系统前端重写 - 本地代理服务(零依赖)",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  }
+}

@@ -1,0 +1,15 @@
+# 登录态(包含会话 cookie, 不要分享/提交)
+.session.json
+.ticket.tmp
+.cookies.tmp
+
+# 调试产物
+*.log
+chrome-cookies.json
+api403.html
+403.html
+
+# 系统文件
+.DS_Store
+Thumbs.db
+node_modules/
