@@ -14,36 +14,35 @@
       <h1>🎓 教务系统</h1>
       <p class="sub">学业完成查询 · GPA 绩点计算</p>
       <div class="login-tabs" id="login-tabs">
-        <button class="on" data-tab="pwd">学号密码</button>
+        <button class="on" data-tab="official">官方登录</button>
         <button data-tab="chrome">Chrome 导入</button>
         <button data-tab="cookie">Cookie</button>
       </div>
 
-      <div id="tab-pwd">
-        <div class="field">
-          <label>学号</label>
-          <input class="input" id="login-xh" placeholder="请输入学号" autocomplete="username" />
+      <div id="tab-official">
+        <div class="notice" style="margin-bottom:16px">
+          <span class="icon">🎓</span>
+          <span>跳转学校<b>官方统一身份认证页面</b>登录, 加密/验证码/短信全部由学校页面处理, 最可靠。</span>
         </div>
-        <div class="field">
-          <label>密码</label>
-          <input class="input" id="login-pwd" type="password" placeholder="统一身份认证密码" autocomplete="current-password" />
-          <div class="hint">密码仅在本机内存中使用, 直接提交至学校统一身份认证 (ids.xmu.edu.cn), 不会发送到任何第三方。</div>
+        <button class="btn primary login-btn" id="official-open-btn">打开统一身份认证登录</button>
+        <div class="hint" style="margin:12px 0">
+          1. 点击上方按钮, 在学校官方页面完成登录(与直接访问教务系统完全一致);<br />
+          2. 登录成功后浏览器跳到 <b>jw.xmu.edu.cn/new/index.html</b>, 地址栏会带有 <code>?ticket=ST-...</code>;<br />
+          3. 点击下方书签工具<b>一键返回本应用</b>(先拖到书签栏, Chrome 可按 Cmd+Shift+B 显示); 或复制地址栏网址, 回到本页粘贴同步。
         </div>
-        <div class="field" id="captcha-field" hidden>
-          <label>验证码</label>
-          <div class="captcha-row">
-            <input class="input" id="login-captcha" placeholder="请输入验证码" />
-            <img class="captcha-img" id="captcha-img" title="点击刷新" alt="验证码" />
-          </div>
+        <a class="btn login-btn" id="official-bookmarklet" href="javascript:void(0)" title="拖动到书签栏" style="text-decoration:none">⭐ 拖我到书签栏 · 一键返回</a>
+        <div class="field" style="margin-top:16px">
+          <label>或粘贴登录后的网址 / 票据</label>
+          <input class="input" id="official-ticket" placeholder="https://jw.xmu.edu.cn/new/index.html?ticket=ST-..." />
         </div>
-        <div class="login-msg" id="login-msg"></div>
-        <button class="btn primary login-btn" id="login-btn">登 录</button>
+        <div class="login-msg" id="official-msg"></div>
+        <button class="btn primary login-btn" id="official-sync-btn">同步登录态</button>
       </div>
 
       <div id="tab-chrome" hidden>
         <div class="notice" style="margin-bottom:16px">
           <span class="icon">⚠️</span>
-          <span>需要先<b>完全关闭 Chrome</b>(所有窗口) 后点击导入。Chrome 运行时 cookie 数据库被独占锁定, 无法读取。</span>
+          <span>通过复制 Chrome 配置档案提取登录态(不解密真实文件, 不影响 Chrome 运行)。<b>需先在 Chrome 里登录过教务系统</b>; 若提示未找到登录态, 请关闭 Chrome 后重试。</span>
         </div>
         <button class="btn primary login-btn" id="chrome-login-btn">从 Chrome 导入登录态</button>
         <div class="login-msg" id="chrome-msg"></div>
@@ -52,8 +51,11 @@
       <div id="tab-cookie" hidden>
         <div class="field">
           <label>Cookie 字符串</label>
-          <textarea class="input" id="cookie-input" rows="5" placeholder="name1=value1; name2=value2; ..." style="resize:vertical;font-family:var(--mono);font-size:12px"></textarea>
-          <div class="hint">在浏览器登录教务系统后, F12 → 应用/Application → Cookies → jw.xmu.edu.cn, 全选复制粘贴到此处。</div>
+          <textarea class="input" id="cookie-input" rows="5" placeholder="直接粘贴即可, 支持: name=value; ... / DevTools 表格复制 / JSON" style="resize:vertical;font-family:var(--mono);font-size:12px"></textarea>
+          <div class="hint">
+            最省事的复制法: 在浏览器登录教务系统后, F12 → 应用/Application → Cookies → jw.xmu.edu.cn,
+            列表里点第一行, 按住 Shift 点最后一行全选, Cmd/Ctrl+C, 直接粘贴到上面(表格格式会自动识别, 无需手动整理)。
+          </div>
         </div>
         <div class="login-msg" id="cookie-msg"></div>
         <button class="btn primary login-btn" id="cookie-login-btn">导入 Cookie 登录</button>

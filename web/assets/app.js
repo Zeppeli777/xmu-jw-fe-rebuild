@@ -90,7 +90,10 @@ export async function api(path, opts = {}) {
       throw new Error("session expired");
     }
   }
-  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || `HTTP ${r.status}`);
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    throw new Error(d.message || d.error || `HTTP ${r.status}`);
+  }
   return r.json();
 }
 
@@ -100,7 +103,11 @@ export let state = { user: null };
 export function showLogin(msg = "") {
   $("#login-layer").hidden = false;
   $("#app").hidden = true;
-  if (msg) $("#login-msg").textContent = msg;
+  if (!msg) return;
+  // 各登录方式有自己的提示区, 消息显示在当前标签页上
+  const tab = $$("#login-tabs button.on")[0]?.dataset.tab || "official";
+  const el = { official: "#official-msg", chrome: "#chrome-msg", cookie: "#cookie-msg" }[tab];
+  if (el) $(el).textContent = msg;
 }
 
 export function showApp(user) {
@@ -122,40 +129,11 @@ export function initLogin(onLoggedIn) {
   $$("#login-tabs button").forEach((b) =>
     b.addEventListener("click", () => {
       $$("#login-tabs button").forEach((x) => x.classList.toggle("on", x === b));
-      $("#tab-pwd").hidden = b.dataset.tab !== "pwd";
-      $("#tab-chrome").hidden = b.dataset.tab !== "chrome";
-      $("#tab-cookie").hidden = b.dataset.tab !== "cookie";
+      for (const t of ["official", "chrome", "cookie"]) {
+        $("#tab-" + t).hidden = b.dataset.tab !== t;
+      }
     })
   );
-
-  // 密码登录
-  $("#login-btn").addEventListener("click", async () => {
-    const xh = $("#login-xh").value.trim();
-    const pwd = $("#login-pwd").value;
-    const captcha = $("#login-captcha").value.trim();
-    const msg = $("#login-msg");
-    if (!xh || !pwd) { msg.textContent = "请输入学号和密码"; return; }
-    msg.textContent = "";
-    const btn = $("#login-btn");
-    btn.disabled = true; btn.textContent = "登录中…";
-    try {
-      const r = await api("/api/login", { method: "POST", body: { username: xh, password: pwd, captcha } });
-      if (r.needCaptcha) {
-        msg.textContent = r.message || "需要验证码";
-        $("#captcha-field").hidden = false;
-        $("#captcha-img").src = "/api/captcha?_=" + Date.now();
-        return;
-      }
-      if (r.ok) { toast("登录成功", "ok"); onLoggedIn(r.user); }
-      else msg.textContent = r.message || "登录失败";
-    } catch (e) {
-      if (e.message !== "session expired") msg.textContent = e.message;
-    } finally {
-      btn.disabled = false; btn.textContent = "登 录";
-    }
-  });
-  $("#captcha-img").addEventListener("click", (e) => { e.target.src = "/api/captcha?_=" + Date.now(); });
-  $("#login-pwd").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#login-btn").click(); });
 
   // Chrome 导入
   $("#chrome-login-btn").addEventListener("click", async () => {
@@ -182,6 +160,40 @@ export function initLogin(onLoggedIn) {
       else msg.textContent = r.message || "Cookie 无效";
     } catch (e) { msg.textContent = e.message; }
     finally { btn.disabled = false; btn.textContent = "导入 Cookie 登录"; }
+  });
+
+  // 官方登录(学校统一身份认证页面)
+  // service 指向不消费票据的静态门户, 登录成功后 ticket 留在地址栏, 带回本应用换会话;
+  // type=userNameLogin 必须带: 否则官方页默认展示企业微信扫码, 不显示账号密码表单
+  const CAS_LOGIN_URL =
+    "https://ids.xmu.edu.cn/authserver/login?type=userNameLogin&service=" +
+    encodeURIComponent("https://jw.xmu.edu.cn/new/index.html");
+  $("#official-open-btn").addEventListener("click", () => {
+    // 必须屏蔽 referer: CAS 会拒绝 Referer 为 localhost 的请求(返回 404 空白页), 用户会卡在空白页上
+    const a = document.createElement("a");
+    a.href = CAS_LOGIN_URL;
+    a.rel = "noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  });
+  // 书签工具: 在学校门户页点击, 带 ticket 跳回本应用(经 location.origin 适配任意端口)
+  $("#official-bookmarklet").href =
+    "javascript:location.href=" +
+    "'" + location.origin + "/?ticket='+encodeURIComponent(new URLSearchParams(location.search).get('ticket')||'')";
+  $("#official-sync-btn").addEventListener("click", async () => {
+    const raw = $("#official-ticket").value.trim();
+    const msg = $("#official-msg");
+    if (!raw) { msg.textContent = "请粘贴登录后的网址或票据"; return; }
+    msg.textContent = "";
+    const btn = $("#official-sync-btn");
+    btn.disabled = true; btn.textContent = "同步中…";
+    try {
+      const r = await api("/api/login/by-ticket", { method: "POST", body: { ticket: raw } });
+      if (r.ok) { toast("登录成功", "ok"); onLoggedIn(r.user); }
+      else msg.textContent = r.message || "票据无效, 请确认已登录成功后重试";
+    } catch (e) { msg.textContent = e.message; }
+    finally { btn.disabled = false; btn.textContent = "同步登录态"; }
   });
 
   // 退出
@@ -219,6 +231,23 @@ export function closeModal() { $("#modal-root").innerHTML = ""; }
 export async function boot(routes) {
   initTheme();
   initLogin((user) => { showApp(user); initRouter(routes); });
+  // 官方登录回跳: 书签工具带回 ?ticket=ST-xxx, 先换会话再进应用
+  const t = new URLSearchParams(location.search).get("ticket");
+  if (t) {
+    history.replaceState({}, "", location.pathname);
+    const fail = (m) => {
+      showLogin(m);
+      $("#official-msg").textContent = m;
+    };
+    try {
+      const r = await api("/api/login/by-ticket", { method: "POST", body: { ticket: t } });
+      if (r.ok) { showApp(r.user); initRouter(routes); return; }
+      fail(r.message || "票据无效或已过期, 请重新登录");
+    } catch (e) {
+      fail(e.message || "票据无效或已过期, 请重新登录");
+    }
+    return;
+  }
   try {
     const s = await api("/api/session");
     if (s.loggedIn && s.user) {

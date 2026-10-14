@@ -4,7 +4,6 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { casLogin, fetchCaptcha, addCookie, cookieHeader } from "./cas.js";
 import * as jw from "./jw.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -71,6 +70,62 @@ async function withSession(res, fn) {
   }
 }
 
+/** 接受完整 URL(如 https://jw.xmu.edu.cn/new/index.html?ticket=ST-xxx)或裸票据 */
+function extractTicket(raw) {
+  const s = String(raw || "").trim();
+  const m = /ticket=([^&\s]+)/.exec(s);
+  if (m) return decodeURIComponent(m[1]);
+  return s.startsWith("ST-") ? s : "";
+}
+
+/**
+ * 解析粘贴的 Cookie, 支持三种常见来源:
+ * 1. 请求头字符串 "name=value; name2=value2"
+ * 2. DevTools → Application → Cookies 表格多选复制(TSV: Name/Value/Domain/Path...)
+ * 3. JSON 数组(扩展导出等): [{name, value, domain, path}]
+ */
+function parseCookieInput(raw) {
+  const s = String(raw || "").trim();
+  const jar = new Map();
+  if (!s) return jar;
+  const put = (name, value, domain = "", p = "/") => {
+    const n = String(name || "").trim();
+    if (!n || n.toLowerCase() === "name") return;
+    jar.set(n + "|" + domain + "|" + p, { name: n, value: String(value ?? "").trim(), domain, path: p });
+  };
+  if (s.startsWith("[")) {
+    try {
+      for (const c of JSON.parse(s)) put(c?.name, c?.value, c?.domain || "", c?.path || "/");
+      return jar;
+    } catch { /* 不是合法 JSON, 按文本继续解析 */ }
+  }
+  for (const line of s.split(/\r?\n/)) {
+    const t = line.trim();
+    if (!t) continue;
+    if (t.includes("\t")) {
+      const cols = t.split("\t");
+      put(cols[0], cols[1], (cols[2] || "").trim().replace(/^\./, ""), (cols[3] || "").trim() || "/");
+    } else if (t.includes("=")) {
+      for (const part of t.split(";")) {
+        const p = part.trim();
+        if (!p || !p.includes("=")) continue;
+        const i = p.indexOf("=");
+        put(p.slice(0, i), p.slice(i + 1));
+      }
+    }
+  }
+  return jar;
+}
+
+/** 找可用的 Python 解释器(macOS 上通常只有 python3; Windows 还常用 py 启动器) */
+async function findPython() {
+  if (process.env.PYTHON) return process.env.PYTHON;
+  const { execFile } = await import("node:child_process");
+  const ok = (cmd) => new Promise((res) => execFile(cmd, ["--version"], (e) => res(!e)));
+  for (const cmd of ["python3", "python", "py"]) if (await ok(cmd)) return cmd;
+  return "python3";
+}
+
 const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, `http://localhost:${PORT}`);
   const p = u.pathname;
@@ -85,35 +140,10 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { loggedIn: MOCK || jw.isLoggedIn(), user });
     }
 
-    if (p === "/api/login" && req.method === "POST") {
-      const { username, password, captcha } = await readBody(req);
-      if (!username || !password) return send(res, 400, { error: "缺少学号或密码" });
-      const r = await casLogin({ username, password, captcha });
-      if (r.ok) {
-        jw.setJar(r.jar);
-        try {
-          await jw.initSession(); // 预热激活 _WEU 令牌
-          await jw.getStudentInfo(); // 验证会话并取学号
-          return send(res, 200, { ok: true, user: jw.currentUser() });
-        } catch (e) {
-          return send(res, 500, { error: "登录后无法访问教务系统, 请稍后重试" });
-        }
-      }
-      if (r.needCaptcha) {
-        return send(res, 200, { needCaptcha: true, message: r.message });
-      }
-      return send(res, 200, { ok: false, message: r.message });
-    }
-
-    if (p === "/api/captcha" && req.method === "GET") {
-      const { contentType, data } = await fetchCaptcha();
-      return send(res, 200, data, { "Content-Type": contentType, "Cache-Control": "no-store" });
-    }
-
     if (p === "/api/login/by-cookie" && req.method === "POST") {
       const { cookies } = await readBody(req);
-      const jar = new Map();
-      for (const c of String(cookies || "").split(";")) addCookie(jar, c.trim());
+      const jar = parseCookieInput(cookies);
+      if (!jar.size) return send(res, 200, { ok: false, message: "未能解析 Cookie, 请检查粘贴内容" });
       jw.setJar(jar);
       try {
         await jw.initSession();
@@ -121,26 +151,29 @@ const server = http.createServer(async (req, res) => {
         return send(res, 200, { ok: true, user: jw.currentUser() });
       } catch (e) {
         jw.clearSession();
-        return send(res, 200, { ok: false, message: "Cookie 无效或已过期" });
+        console.error("[by-cookie]", e);
+        return send(res, 200, { ok: false, message: "Cookie 无效或已过期: " + e.message });
       }
     }
 
     if (p === "/api/login/by-chrome" && req.method === "POST") {
-      // 从本机 Chrome 提取登录态(需 Chrome 已完全关闭, 否则 cookie 数据库被独占锁住)
+      // 从本机 Chrome 提取登录态(复制 profile 由 headless Chrome 自行解密, 不碰真实 profile)
       const { execFile } = await import("node:child_process");
-      const py = process.env.PYTHON || "python";
+      const py = await findPython();
       const script = path.join(__dirname, "chrome_cookies.py");
       execFile(py, [script], { timeout: 60000 }, (err, stdout) => {
         try {
           const out = JSON.parse(stdout.trim().split("\n").pop() || "{}");
           if (!out.cookies) return send(res, 200, { ok: false, message: out.error || "未能读取 Chrome 登录态" });
-          const jar = new Map();
-          for (const c of out.cookies.split(";")) addCookie(jar, c.trim());
-          jw.setJar(jar);
+          jw.setJar(parseCookieInput(out.cookies));
           jw.initSession()
             .then(() => jw.getStudentInfo())
             .then(() => send(res, 200, { ok: true, user: jw.currentUser() }))
-            .catch(() => { jw.clearSession(); send(res, 200, { ok: false, message: "Chrome 中的登录态已失效, 请先在 Chrome 重新登录教务系统" }); });
+            .catch((e) => {
+              jw.clearSession();
+              console.error("[by-chrome]", e);
+              send(res, 200, { ok: false, message: "Chrome 中的登录态已失效, 请先在 Chrome 重新登录教务系统: " + e.message });
+            });
         } catch {
           send(res, 200, { ok: false, message: "读取 Chrome 登录态失败: " + (err?.message || "未知错误") });
         }
@@ -150,9 +183,10 @@ const server = http.createServer(async (req, res) => {
 
     if (p === "/api/login/by-ticket" && req.method === "POST") {
       const { ticket } = await readBody(req);
-      if (!ticket) return send(res, 400, { error: "缺少 ticket" });
+      const st = extractTicket(ticket);
+      if (!st) return send(res, 400, { error: "未能识别票据, 请粘贴登录后的完整网址或 ST- 开头的票据" });
       try {
-        const user = await jw.loginByTicket(ticket);
+        const user = await jw.loginByTicket(st);
         return send(res, 200, { ok: true, user });
       } catch (e) {
         if (e.code === "BAD_TICKET") return send(res, 200, { ok: false, message: e.message });

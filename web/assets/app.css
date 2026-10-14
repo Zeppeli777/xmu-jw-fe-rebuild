@@ -397,9 +397,6 @@ select.input { cursor: pointer; }
 .field .hint { font-size: 11.5px; color: var(--text-3); margin-top: 5px; line-height: 1.55; }
 .login-msg { font-size: 12.5px; color: var(--red); min-height: 18px; margin: 4px 0 8px; text-align: center; }
 .login-btn { width: 100%; padding: 11px; font-size: 14.5px; margin-top: 4px; }
-.captcha-row { display: flex; gap: 9px; align-items: center; }
-.captcha-row .input { flex: 1; }
-.captcha-img { height: 38px; border-radius: 9px; border: 1px solid var(--border); cursor: pointer; background: #fff; }
 
 /* ============ 学业完成查询 ============ */
 

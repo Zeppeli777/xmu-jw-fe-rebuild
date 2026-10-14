@@ -430,7 +430,6 @@ export async function emailZm(wids, mail) {
  */
 export async function loginByTicket(ticket) {
   const jar = new Map();
-  state.jar = jar;
   let url = `${JW}/jwapp/sys/emapangular/index.do?ticket=${encodeURIComponent(ticket)}`;
   for (let i = 0; i < 8 && url; i++) {
     const r = await fetch(url, {
@@ -451,6 +450,7 @@ export async function loginByTicket(ticket) {
     e.code = "BAD_TICKET";
     throw e;
   }
+  state.jar = jar; // 验证通过后才接管会话, 失败不影响已有登录态
   await initSession(); // 预热激活 _WEU
   await getStudentInfo(); // 验证会话
   return state.user;

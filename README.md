@@ -19,9 +19,9 @@ http://localhost:8787
 
 | 方式 | 说明 |
 |---|---|
-| **学号密码** | 直接输入统一身份认证账号密码。密码只在本机内存中使用, 经 HTTPS 直接提交至学校身份认证(ids.xmu.edu.cn), 不经过任何第三方 |
-| **Chrome 导入** | 读取本机 Chrome 的登录态。**需先完全关闭 Chrome**(所有窗口), 否则 cookie 数据库被独占锁定无法读取 |
-| **Cookie 粘贴** | 浏览器登录教务系统后, F12 → 应用/Application → Cookies → jw.xmu.edu.cn 全选复制粘贴 |
+| **官方登录**(推荐) | 跳转学校官方统一身份认证页面登录, 加密/验证码/短信全部由学校页面处理。登录成功后落到 jw.xmu.edu.cn/new/index.html(静态门户, 不消费票据), 地址栏带 `?ticket=ST-...`, 用登录页提供的书签工具一键返回, 或复制网址回本页粘贴同步 |
+| **Chrome 导入** | 复制 Chrome 配置档案, 由 headless Chrome 自行解密提取登录态(不影响 Chrome 运行, Windows/macOS 均支持)。需先在 Chrome 里登录过教务系统; 若提示未找到登录态, 请关闭 Chrome 后重试 |
+| **Cookie 粘贴** | 浏览器登录教务系统后, F12 → 应用/Application → Cookies → jw.xmu.edu.cn, 列表里 Shift 多选复制, 直接粘贴(表格格式自动识别, 无需手动整理) |
 
 登录态保存在 `server/.session.json`, 重启服务无需重复登录; 失效后前端会提示重新登录。
 
@@ -58,7 +58,7 @@ http://localhost:8787
 xmu-jw-fe-rebuild/
 ├── server/                 # 本地代理服务(零依赖, Node 18+)
 │   ├── index.js            # HTTP 服务: 静态文件 + /api 路由 + mock 模式
-│   ├── cas.js              # CAS 统一身份认证登录(密码加密/验证码/cookie 管理)
+│   ├── cas.js              # cookie 工具(Set-Cookie 解析/同名去重/序列化)
 │   ├── jw.js               # 教务系统 API 客户端(会话/令牌轮换/角色/业务接口)
 │   ├── chrome_cookies.py   # 从本机 Chrome 提取登录态(需 Chrome 已关闭)
 │   ├── chrome_history.py   # 从 Chrome 历史发现应用入口地址(辅助)

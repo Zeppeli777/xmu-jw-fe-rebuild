@@ -1,10 +1,13 @@
-import sqlite3, shutil, os, tempfile, glob
+import sqlite3, shutil, os, sys, tempfile, glob
 
-# 找 Chrome 历史(可能多个 profile)
-candidates = [
-    os.path.expanduser("~/AppData/Local/Google/Chrome/User Data/Default/History"),
-    os.path.expanduser("~/AppData/Local/Google/Chrome/User Data/Profile 1/History"),
-]
+# 找 Chrome 历史(Windows/macOS, 可能多个 profile)
+if sys.platform.startswith("win"):
+    base = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Google", "Chrome", "User Data")
+    profiles = ["Default", "Profile 1"]
+else:
+    base = os.path.expanduser("~/Library/Application Support/Google/Chrome")
+    profiles = ["Default", "Profile 1"]
+candidates = [os.path.join(base, p, "History") for p in profiles]
 src = next((p for p in candidates if os.path.exists(p)), None)
 if not src:
     print("NO_HISTORY")

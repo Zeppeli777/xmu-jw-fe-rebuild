@@ -1,6 +1,7 @@
 # 从本机 Chrome 提取 jw.xmu.edu.cn 的完整 cookie(含 HttpOnly), 供本地服务一键导入登录态。
-# 原理: 复制最小 profile(Local State + Network/Cookies)到临时目录, 用 headless Chrome 打开,
+# 原理: 复制最小 profile(Local State + Cookies)到临时目录, 用 headless Chrome 打开,
 # 通过 CDP Storage.getCookies 取明文(Chrome 自行完成解密, 真实 profile 不被修改)。
+# macOS 上解密由 Chrome 自己向 Keychain 完成(同一 App 已授权), 不会弹密码框。
 # 输出: JSON { "cookies": "name=value; ...", "count": N }
 import http.client
 import json
@@ -12,13 +13,28 @@ import sys
 import tempfile
 import time
 
-CHROME_USER_DATA = os.path.join(os.environ["LOCALAPPDATA"], "Google", "Chrome", "User Data")
-CHROME_PROFILE = "Default"
-CHROME_EXE = os.path.join(os.environ["PROGRAMFILES"], "Google", "Chrome", "Application", "chrome.exe")
-if not os.path.exists(CHROME_EXE):
-    CHROME_EXE = os.path.join(os.environ["LOCALAPPDATA"], "Google", "Chrome", "Application", "chrome.exe")
-
 TARGET_HOSTS = ("jw.xmu.edu.cn", "ids.xmu.edu.cn")
+
+
+def _detect_chrome():
+    """跨平台定位 Chrome: 返回 (user_data_dir, chrome_exe, cookie 数据库相对路径候选)"""
+    if sys.platform.startswith("win"):
+        base = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Google", "Chrome", "User Data")
+        exes = [
+            os.path.join(os.environ.get("PROGRAMFILES", ""), "Google", "Chrome", "Application", "chrome.exe"),
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), "Google", "Chrome", "Application", "chrome.exe"),
+        ]
+        dbs = [("Default", "Network", "Cookies"), ("Default", "Cookies")]
+    else:  # macOS(Linux 未验证)
+        base = os.path.expanduser("~/Library/Application Support/Google/Chrome")
+        exes = ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"]
+        dbs = [("Default", "Cookies"), ("Default", "Network", "Cookies")]
+    exe = next((p for p in exes if p and os.path.exists(p)), None)
+    return base, exe, dbs
+
+
+CHROME_USER_DATA, CHROME_EXE, COOKIE_DB_CANDIDATES = _detect_chrome()
+CHROME_PROFILE = "Default"
 
 
 def ws_call(ws_url, method, params=None, msg_id=1):
@@ -87,24 +103,45 @@ def ws_call(ws_url, method, params=None, msg_id=1):
 
 
 def main():
+    if not CHROME_EXE:
+        print(json.dumps({"error": "未找到 Chrome(请确认已安装 Google Chrome)"}))
+        return
+    if not os.path.isdir(CHROME_USER_DATA):
+        print(json.dumps({"error": f"未找到 Chrome 用户数据目录: {CHROME_USER_DATA}"}))
+        return
+
     workdir = tempfile.mkdtemp(prefix="jw-cookie-")
     profile_dir = os.path.join(workdir, "profile")
-    os.makedirs(os.path.join(profile_dir, CHROME_PROFILE, "Network"), exist_ok=True)
+    os.makedirs(os.path.join(profile_dir, CHROME_PROFILE), exist_ok=True)
+
+    copy_errors = []
 
     def copy_if_exists(src, dst):
         if os.path.exists(src):
-            shutil.copy2(src, dst)
+            try:
+                shutil.copy2(src, dst)
+            except OSError as e:
+                # Windows 上 Chrome 运行时会锁住 cookie 数据库, 复制会失败
+                copy_errors.append(f"{os.path.basename(src)}: {e}")
 
     copy_if_exists(os.path.join(CHROME_USER_DATA, "Local State"), os.path.join(profile_dir, "Local State"))
     copy_if_exists(os.path.join(CHROME_USER_DATA, CHROME_PROFILE, "Preferences"),
                    os.path.join(profile_dir, CHROME_PROFILE, "Preferences"))
-    for name in ("Cookies", "Cookies-wal", "Cookies-shm"):
-        copy_if_exists(os.path.join(CHROME_USER_DATA, CHROME_PROFILE, "Network", name),
-                       os.path.join(profile_dir, CHROME_PROFILE, "Network", name))
+    # cookie 数据库位置随 Chrome 版本变化(旧版在 Default/Cookies, 新版在 Default/Network/Cookies)
+    cookies_db = None
+    for rel in COOKIE_DB_CANDIDATES:
+        dst_dir = os.path.join(profile_dir, *rel[:-1])
+        os.makedirs(dst_dir, exist_ok=True)
+        for name in ("Cookies", "Cookies-wal", "Cookies-shm"):
+            copy_if_exists(os.path.join(CHROME_USER_DATA, *rel[:-1], name), os.path.join(dst_dir, name))
+        candidate = os.path.join(profile_dir, *rel)
+        if cookies_db is None and os.path.exists(candidate):
+            cookies_db = candidate
 
-    cookies_db = os.path.join(profile_dir, CHROME_PROFILE, "Network", "Cookies")
-    if not os.path.exists(cookies_db):
-        print(json.dumps({"error": "找不到 Chrome Cookies 数据库(Chrome 未安装或未登录过?)"}))
+    if not cookies_db:
+        hint = "请先完全关闭 Chrome 后重试" if copy_errors else "Chrome 未安装或未登录过?"
+        detail = ("; " + "; ".join(copy_errors[:2])) if copy_errors else ""
+        print(json.dumps({"error": f"找不到 Chrome Cookies 数据库({hint}){detail}"}))
         return
 
     db_rows = -1
