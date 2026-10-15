@@ -34,12 +34,19 @@
   --radius: 16px;
   --radius-sm: 10px;
   --sidebar-w: 232px;
+  /* 原生下拉弹层用不透明底色: 半透明的 --surface 会被浏览器忽略, 弹层退回系统亮色 */
+  --pop-bg: #151b2e;
+  --pop-text: #eef2ff;
+  color-scheme: dark;
   --font: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: "SF Mono", "Cascadia Code", Consolas, "Courier New", monospace;
 }
 
 [data-theme="light"] {
   --bg: #f4f6fb;
+  --pop-bg: #ffffff;
+  --pop-text: #0f172a;
+  color-scheme: light;
   --bg-grad-1: rgba(99, 102, 241, 0.1);
   --bg-grad-2: rgba(34, 211, 238, 0.07);
   --surface: rgba(255, 255, 255, 0.85);
@@ -87,7 +94,7 @@ body {
 body::before {
   content: "";
   position: fixed;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0;
   z-index: -1;
   background:
     radial-gradient(60rem 30rem at 110% -10%, var(--bg-grad-1), transparent 60%),
@@ -341,6 +348,11 @@ table.data .course-name { font-weight: 600; white-space: normal; min-width: 130p
 }
 .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 select.input { cursor: pointer; }
+/* 原生下拉: macOS 跟随 color-scheme, Windows/Linux 取 option 的配色 */
+select.input option {
+  background-color: var(--pop-bg);
+  color: var(--pop-text);
+}
 
 /* 进度条 */
 .pbar { height: 7px; border-radius: 99px; background: var(--surface-hover); overflow: hidden; }
@@ -363,14 +375,14 @@ select.input { cursor: pointer; }
 /* ============ 登录页 ============ */
 
 .login-layer {
-  position: fixed; inset: 0; z-index: 100;
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 100;
   display: grid; place-items: center;
   background: var(--bg);
   padding: 20px;
   overflow-y: auto;
 }
 .login-layer::before {
-  content: ""; position: absolute; inset: 0;
+  content: ""; position: absolute; top: 0; right: 0; bottom: 0; left: 0;
   background:
     radial-gradient(50rem 26rem at 50% -8%, var(--bg-grad-1), transparent 65%),
     radial-gradient(40rem 22rem at 50% 112%, var(--bg-grad-2), transparent 65%);
@@ -411,7 +423,7 @@ select.input { cursor: pointer; }
   filter: drop-shadow(0 0 6px rgba(129, 140, 248, 0.5));
 }
 .ring-center {
-  position: absolute; inset: 0;
+  position: absolute; top: 0; right: 0; bottom: 0; left: 0;
   display: grid; place-items: center; text-align: center;
 }
 .ring-center .pct { font-size: 27px; font-weight: 800; font-variant-numeric: tabular-nums; background: var(--accent-grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
@@ -484,7 +496,7 @@ select.input { cursor: pointer; }
 
 .gpa-hero { text-align: center; padding: 26px 20px; position: relative; overflow: hidden; }
 .gpa-hero::before {
-  content: ""; position: absolute; inset: 0;
+  content: ""; position: absolute; top: 0; right: 0; bottom: 0; left: 0;
   background: radial-gradient(18rem 9rem at 50% -20%, var(--accent-soft), transparent 70%);
 }
 .gpa-hero .big {
@@ -500,7 +512,7 @@ select.input { cursor: pointer; }
 .gpa-tri .v { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .gpa-tri .k { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
 
-.rec-item { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); overflow: hidden; transition: border-color 0.18s; }
+.rec-item { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); overflow: hidden; transition: border-color 0.18s; min-width: 0; }
 .rec-item:hover { border-color: var(--border-strong); }
 .rec-item.open { border-color: rgba(129, 140, 248, 0.35); }
 .rec-head { display: flex; align-items: center; gap: 13px; padding: 13px 16px; cursor: pointer; user-select: none; transition: background 0.14s; flex-wrap: wrap; }
@@ -511,7 +523,7 @@ select.input { cursor: pointer; }
 .rec-head .rr { font-size: 12px; color: var(--text-3); }
 .rec-head .rg { margin-left: auto; display: flex; gap: 14px; align-items: center; }
 .rec-head .rg .g { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); }
-.rec-body { border-top: 1px solid var(--border); padding: 13px 16px; }
+.rec-body { border-top: 1px solid var(--border); padding: 13px 16px; min-width: 0; }
 
 .chart-box { padding: 6px 4px 0; }
 .chart-box svg { width: 100%; height: auto; display: block; }
@@ -530,7 +542,7 @@ select.input { cursor: pointer; }
 .notice .icon { flex-shrink: 0; margin-top: 1px; }
 
 /* 弹窗 */
-.modal-mask { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.6); backdrop-filter: blur(6px); z-index: 200; display: grid; place-items: center; padding: 18px; animation: fadeIn 0.2s; }
+.modal-mask { position: fixed; top: 0; right: 0; bottom: 0; left: 0; background: rgba(2, 6, 23, 0.6); backdrop-filter: blur(6px); z-index: 200; display: grid; place-items: center; padding: 18px; animation: fadeIn 0.2s; }
 @keyframes fadeIn { from { opacity: 0; } }
 .modal {
   width: min(460px, 100%);

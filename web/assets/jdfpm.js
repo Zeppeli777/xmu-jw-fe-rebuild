@@ -139,7 +139,7 @@ function render(el) {
     catch (err) { toast(err.message, "err"); }
   });
   $("#btn-apply", el)?.addEventListener("click", showApplyModal);
-  $("#btn-print", el)?.addEventListener("click", showPrintModal);
+  $("#btn-print", el)?.addEventListener("click", () => showPrintModal());
   $("#btn-detail", el)?.addEventListener("click", () => {
     const latest = latestRecord();
     if (!latest) return;
@@ -224,7 +224,7 @@ function detailTableHtml(rows) {
       ${groups.map(([term, list]) => {
         const xf = list.reduce((s, c) => s + (Number(c.XF) || 0), 0);
         return `
-        <div>
+        <div style="min-width:0">
           <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">
             <b style="font-size:13px">${esc(term)}</b>
             <span style="font-size:11.5px;color:var(--text-3)">${list.length} 门 · ${fmtNum(xf)} 学分</span>
@@ -374,7 +374,10 @@ function showPrintModal(wid) {
       wid, lx: $("#p-lx", m).value,
       dynr: $("#p-dynr", m).value, sfxypm: $("#p-sfxypm", m).value,
     });
-    window.open("/api/jdfpm/print?" + q, "_blank");
+    const url = "/api/jdfpm/print?" + q;
+    // 安卓 App: WebView 里 window.open 不可用, 交给原生带上会话直接打开学校打印页
+    if (window.JWAndroid) window.JWAndroid.openUrl(url);
+    else window.open(url, "_blank");
     closeModal();
   });
 }

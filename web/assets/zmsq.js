@@ -138,6 +138,16 @@ function bindMine(el) {
       const name = b.dataset.name || "证明文件";
       b.disabled = true;
       try {
+        // 安卓 App: WebView 不支持 blob 下载, 交给原生保存到系统「下载」目录
+        if (window.JWAndroid) {
+          const r = JSON.parse(window.JWAndroid.saveFile(url, name + ".pdf"));
+          if (r.ok) toast("已保存到 " + (r.path || "下载目录"), "ok");
+          else {
+            toast(r.message || "下载失败(证明可能已过期)", "err");
+            if (r.reload) location.reload();
+          }
+          return;
+        }
         const r = await fetch(url);
         const ct = r.headers.get("content-type") || "";
         if (ct.includes("application/json")) {

@@ -168,7 +168,27 @@ export function initLogin(onLoggedIn) {
   const CAS_LOGIN_URL =
     "https://ids.xmu.edu.cn/authserver/login?type=userNameLogin&service=" +
     encodeURIComponent("https://jw.xmu.edu.cn/new/index.html");
+  // 安卓 App: 登录页放在应用内的 WebView 里打开, 登录成功后由原生捕获 ?ticket= 换会话,
+  // 不需要书签工具, 也不需要复制粘贴
+  if (window.JWAndroid) {
+    const bm = $("#official-bookmarklet");
+    if (bm) bm.hidden = true;
+    const notice = $("#tab-official .notice span:last-child");
+    if (notice) {
+      notice.innerHTML =
+        "在应用内打开学校<b>官方统一身份认证页面</b>登录, 加密/验证码/短信全部由学校页面处理, 最可靠。" +
+        "登录成功后<b>自动返回本应用</b>, 无需任何复制粘贴。";
+    }
+    const hint = $("#tab-official .hint");
+    if (hint) {
+      hint.innerHTML =
+        "1. 点击上方按钮, 在应用内打开学校官方登录页(与直接访问教务系统完全一致);<br />" +
+        "2. 登录成功后<b>自动返回本应用</b>, 稍等即可看到数据。<br />" +
+        "若登录页长时间无响应, 也可在浏览器里登录后, 把地址栏网址贴到下面同步。";
+    }
+  }
   $("#official-open-btn").addEventListener("click", () => {
+    if (window.JWAndroid) { window.JWAndroid.openCasLogin(CAS_LOGIN_URL); return; }
     // 必须屏蔽 referer: CAS 会拒绝 Referer 为 localhost 的请求(返回 404 空白页), 用户会卡在空白页上
     const a = document.createElement("a");
     a.href = CAS_LOGIN_URL;

@@ -14,6 +14,18 @@
 
 ## 快速开始
 
+### 懒人一键启动(不用命令行)
+
+| 系统 | 双击这个文件 |
+|---|---|
+| Windows | `script\start-win.bat` |
+| macOS | `script\start-mac.command` |
+
+脚本会自动做三件事: 找本机 Node.js(没装会提示并打开官网)→ 启动服务 → 自动打开浏览器。
+macOS 上如果双击没反应, 先在终端执行一次 `chmod +x script/start-mac.command`。
+
+### 或者手动启动
+
 ```bash
 # 1. 启动(零依赖, 不需要 npm install)
 node server/index.js
@@ -21,6 +33,8 @@ node server/index.js
 # 2. 浏览器打开
 http://localhost:8787
 ```
+
+> 需要 Node.js 18+。没有的话去 https://nodejs.org/ 下载 LTS 版, 一直点下一步即可。
 
 首次使用需登录(三选一):
 
@@ -70,6 +84,9 @@ xmu-jw-fe-rebuild/
 │   ├── chrome_cookies.py   # 从本机 Chrome 提取登录态(复制 profile 解密, Windows/macOS)
 │   ├── chrome_history.py   # 从 Chrome 历史发现应用入口地址(辅助)
 │   └── .session.json       # 登录态持久化(自动生成, 已在 .gitignore)
+├── script/                 # 懒人一键启动脚本(不用命令行)
+│   ├── start-win.bat       # Windows: 双击即用
+│   └── start-mac.command   # macOS: 双击即用(已带可执行位)
 ├── web/                    # 前端(原生 HTML/CSS/JS, 无构建)
 │   ├── index.html          # 应用壳: 侧栏/登录层/路由容器
 │   └── assets/
@@ -101,6 +118,12 @@ xmu-jw-fe-rebuild/
 4. **应用角色**: 各应用按角色鉴权, 新会话必须经 `changeAppRole` + `setJwCommonAppRole` 设置角色(本科生), 否则业务 API 403。注意每个应用有各自的角色(证明文件申请是"证明申请本科生")。
 5. **方案 ID 发现**: 学业完成查询先用 `cxxsscfa.do`(空参数, 服务端按会话取当前学生)拿到培养方案 ID(PYFADM), 再查课组与课程。
 6. **Referer 校验**: EMAP 对码表/保存类端点校验 Referer 必须为对应的应用页; 且同应用的列表接口在 `modules/<路由>/` 下、动作接口在应用根 `/<路由>/` 下。
+
+## 安卓 App
+
+另有一个安卓 App(WebView 壳 + Kotlin 内置同款服务端, 手机里不需要 node、也不用连电脑), 直接装 APK 就能用。
+源码放在 `android-app` 分支(不进 main, 免得仓库冗余), 由 `web/` 前端里的 `window.JWAndroid` 原生钩子驱动:
+证明 PDF 保存到系统下载目录、绩点证明打印走原生打开学校页面、官方登录在应用内 WebView 里完成并自动捕获票据。
 
 ## 隐私与边界
 
