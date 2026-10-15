@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 与前端 favicon 一致的紫色 -->
+    <color name="ic_launcher_background">#818CF8</color>
+</resources>

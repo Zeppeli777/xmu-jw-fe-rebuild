@@ -1,0 +1,11 @@
+# 安卓构建产物与本机配置(不入库)
+.gradle/
+build/
+app/build/
+local.properties
+.idea/
+*.iml
+.cxx/
+captures/
+app/src/debug/assets/
+app/src/main/assets/web/

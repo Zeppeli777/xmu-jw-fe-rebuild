@@ -87,6 +87,16 @@ xmu-jw-fe-rebuild/
 ├── script/                 # 懒人一键启动脚本(不用命令行)
 │   ├── start-win.bat       # Windows: 双击即用
 │   └── start-mac.command   # macOS: 双击即用(已带可执行位)
+├── android/                # 安卓 App(WebView 壳 + Kotlin 内置服务端)
+│   ├── app/src/main/java/com/xmu/jw/
+│   │   ├── MainActivity.kt # 全屏 WebView + 请求拦截 + 官方登录票据捕获
+│   │   ├── ApiServer.kt    # /api 路由层(移植自 server/index.js)
+│   │   ├── JsBridge.kt     # 原生能力: 打开 CAS 登录页 / 存 PDF / 打开学校打印页
+│   │   ├── Assets.kt       # 静态资源服务 + 注入 fetch 包装(POST 体走 X-JW-Body 头)
+│   │   ├── Downloads.kt    # MediaStore 保存 PDF
+│   │   ├── DemoData.kt     # 演示模式(仅 debug): 用 analysis 样本渲染界面
+│   │   └── core/           # 纯 JVM 层: HTTP/cookie/教务客户端(与 server/*.js 一一对应)
+│   └── tools/demo-proof.pdf# 演示模式用的示例 PDF
 ├── web/                    # 前端(原生 HTML/CSS/JS, 无构建)
 │   ├── index.html          # 应用壳: 侧栏/登录层/路由容器
 │   └── assets/
@@ -119,11 +129,59 @@ xmu-jw-fe-rebuild/
 5. **方案 ID 发现**: 学业完成查询先用 `cxxsscfa.do`(空参数, 服务端按会话取当前学生)拿到培养方案 ID(PYFADM), 再查课组与课程。
 6. **Referer 校验**: EMAP 对码表/保存类端点校验 Referer 必须为对应的应用页; 且同应用的列表接口在 `modules/<路由>/` 下、动作接口在应用根 `/<路由>/` 下。
 
-## 安卓 App
+## 安卓 App(本分支内容)
 
-另有一个安卓 App(WebView 壳 + Kotlin 内置同款服务端, 手机里不需要 node、也不用连电脑), 直接装 APK 就能用。
-源码放在 `android-app` 分支(不进 main, 免得仓库冗余), 由 `web/` 前端里的 `window.JWAndroid` 原生钩子驱动:
-证明 PDF 保存到系统下载目录、绩点证明打印走原生打开学校页面、官方登录在应用内 WebView 里完成并自动捕获票据。
+电脑版要在电脑上跑 `node server/index.js`; 安卓版把同一套服务端逻辑用 Kotlin 移植进了 App 内部
+(`android/app/src/main/java/com/xmu/jw/core/` 对应 `server/` 下的 js), 手机里不需要 node、也不需要连电脑:
+WebView 加载内置的 `web/` 前端, `/api/*` 请求由 App 内的服务端直接访问教务系统。
+登录态存在 App 私有目录, 与电脑版互不影响(同一会话在两端同时用会互相顶掉令牌, 属正常现象)。
+
+### 构建 APK
+
+```bash
+cd android
+./gradlew assembleDebug          # 产物: app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+装到手机: 把 `app-debug.apk` 通过微信/QQ/数据线传到手机, 点开安装(需允许"安装未知应用")。
+要求: JDK 17+、Android SDK(platforms;android-36, build-tools 36.1.0), 首次构建需联网下载 AGP/Kotlin 插件。
+`android/local.properties` 里写死本机 SDK 路径(不入库), 换机器要改这一行。
+前端改完不用手动同步: Gradle 的 `syncWeb` 任务每次构建都会把 `../web` 拷进 assets。
+
+### 登录方式(与电脑版的差异)
+
+电脑版靠"浏览器 + 书签工具"把票据带回本应用; 安卓端没这个问题——**官方登录直接在应用内的 WebView 里打开学校登录页**,
+用户用什么方式登录都行(账号密码/扫码/短信), 登录成功后学校 302 跳回静态门户, 地址栏里的 `?ticket=ST-...`
+被应用拦下来换成本地会话, 然后自动回到主界面。不需要书签工具, 也不需要复制粘贴。
+
+| | 电脑版(node) | 安卓 App |
+|---|---|---|
+| 登录方式 | 官方登录(书签工具带回票据) / Chrome 导入 / Cookie | **官方登录(应用内 WebView, 自动捕获票据)** / Cookie 粘贴 |
+| Chrome 导入 | 复制 profile 由 headless Chrome 解密 | 不支持(读不到其他 App 的 cookie 库) |
+| 证明 PDF 下载 | 浏览器下载 | 原生保存到系统「下载」目录(WebView 不支持 blob 下载) |
+| 绩点证明打印 | 新窗口打开 | 原生带上会话直接打开学校打印页, 返回键回到 App |
+| 登录态 | `server/.session.json` | App 私有 SharedPreferences |
+
+前端里 `window.JWAndroid` 存在时走原生分支, 不存在时(电脑版)行为完全不变。
+
+### 演示模式(仅 debug 包)
+
+没登录态也能看界面: 往 App 里放一个标记文件, 重启后用 `analysis/` 里抓包的真实样本数据渲染三个页面。
+
+```bash
+adb shell "run-as com.xmu.jw sh -c 'mkdir -p files && echo x > files/jw-demo.on'"
+```
+
+### 单元测试
+
+`android/app/src/test/` 下有一套 JVM 单测: 用本地桩服务模拟 EMAP + CAS,
+逐条断言请求参数、Referer、_WEU 令牌轮换、同名 cookie 去重、403 预热重试、票据交换失败不清会话、
+返回给前端的 JSON 形状(不联网、不用真实账号), 另有少量不打登录态的真实网络用例。
+
+```bash
+cd android && ./gradlew testDebugUnitTest
+```
 
 ## 隐私与边界
 
